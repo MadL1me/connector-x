@@ -3,16 +3,14 @@ use super::{
     typesystem::{DateTimeWrapperMicro, NaiveDateTimeWrapperMicro, NaiveTimeWrapperMicro},
 };
 use crate::constants::SECONDS_IN_DAY;
-use arrow::array::{
-    ArrayBuilder, BooleanBuilder, Date32Builder, Float32Builder, Float64Builder, Int32Builder,
-    Int64Builder, LargeBinaryBuilder, StringBuilder, Time64MicrosecondBuilder,
-    Time64NanosecondBuilder, TimestampMicrosecondBuilder, TimestampNanosecondBuilder,
-    UInt32Builder, UInt64Builder,
-};
+use arrow::{array::{
+    ArrayBuilder, BooleanBuilder, BufferBuilder, Date32Builder, Float32Builder, Float64Builder, GenericListArray, GenericListBuilder, Int32Builder, Int64Builder, LargeBinaryBuilder, ListBuilder, PrimitiveBuilder, StringBuilder, Time64MicrosecondBuilder, Time64NanosecondBuilder, TimestampMicrosecondBuilder, TimestampNanosecondBuilder, UInt32Builder, UInt64Builder
+}, datatypes::Int32Type, ipc::BoolBuilder};
 use arrow::datatypes::Field;
 use arrow::datatypes::{DataType as ArrowDataType, TimeUnit};
 use chrono::{DateTime, NaiveDate, NaiveDateTime, NaiveTime, Timelike, Utc};
 use fehler::throws;
+use std::sync::Arc;
 
 /// Associate arrow builder with native type
 pub trait ArrowAssoc {
@@ -68,6 +66,91 @@ impl_arrow_assoc!(i64, ArrowDataType::Int64, Int64Builder);
 impl_arrow_assoc!(f32, ArrowDataType::Float32, Float32Builder);
 impl_arrow_assoc!(f64, ArrowDataType::Float64, Float64Builder);
 impl_arrow_assoc!(bool, ArrowDataType::Boolean, BooleanBuilder);
+
+macro_rules! impl_arrow_assoc_vec {
+    ($T:ty, $AT:expr, $B:ty) => {
+        impl ArrowAssoc for Vec<$T> {
+            type Builder = $B;
+
+            fn builder(nrows: usize) -> Self::Builder {
+                Self::Builder::with_capacity(nrows)
+            }
+
+            //#[throws(ArrowDestinationError)]
+            fn append(builder: &mut Self::Builder, value: Self) -> Result<()> {
+                let val: Vec<Option<$T>> = value.into_iter().map(|v| Some(v)).collect();
+                //builder.try_push(Some(val)).unwrap();
+                for n in val {
+                    builder.append_option(n);
+                }
+                Ok(())
+            }
+
+            fn field(header: &str) -> Field {
+                Field::new(
+                    header,
+                    ArrowDataType::LargeList(Arc::new(Field::new("", $AT, false))),
+                    false,
+                )
+            }
+        }
+
+        impl ArrowAssoc for Option<Vec<$T>> {
+            type Builder = $B;
+
+            fn builder(nrows: usize) -> Self::Builder {
+                Self::Builder::with_capacity(nrows)
+            }
+
+            //#[throws(ArrowDestinationError)]
+            fn append(builder: &mut Self::Builder, value: Self) -> Result<()> {
+                match value {
+                    Some(values) => {
+                        let val: Vec<Option<$T>> = values.into_iter().map(|v| Some(v)).collect();
+                        for n in val {
+                            builder.append_option(n);
+                        }
+                        Ok(())
+                    }
+                    None => {
+                        builder.append_null();
+                        Ok(())
+                    },
+                }
+            }
+
+            fn field(header: &str) -> Field {
+                Field::new(
+                    header,
+                    ArrowDataType::LargeList(Arc::new(Field::new("", $AT, false))),
+                    true,
+                )
+            }
+        }
+    };
+}
+
+macro_rules! impl_arrow_assoc_primitive_vec {
+    ($T:ty, $AT:expr) => {
+        impl_arrow_assoc_vec!($T, $AT, $T);
+    };
+}
+
+// impl_arrow_assoc_vec!(bool, ArrowDataType::Boolean, BooleanBuilder);
+impl_arrow_assoc_vec!(i32, ArrowDataType::Int32, Int32Builder);
+impl_arrow_assoc_vec!(i64, ArrowDataType::Int64, Int64Builder);
+// impl_arrow_assoc_vec!(u32, ArrowDataType::UInt32, UInt32Builder);
+// impl_arrow_assoc_vec!(u64, ArrowDataType::UInt64, UInt64Builder);
+// impl_arrow_assoc_vec!(f32, ArrowDataType::Float32, Float32Builder);
+// impl_arrow_assoc_vec!(f64, ArrowDataType::Float64, Float64Builder);
+
+// impl_arrow_assoc_vec!(bool, GenericListArray<i32>, ArrowDataType::Boolean);
+// impl_arrow_assoc_vec!(i32, GenericListArray<i32>, ArrowDataType::Int32);
+// impl_arrow_assoc_vec!(i64, GenericListArray<i32>, ArrowDataType::Int64);
+// impl_arrow_assoc_vec!(u32, GenericListArray<i32>, ArrowDataType::UInt32);
+// impl_arrow_assoc_vec!(u64, GenericListArray<i32>, ArrowDataType::UInt64);
+// impl_arrow_assoc_vec!(f32, GenericListArray<i32>, ArrowDataType::Float32);
+// impl_arrow_assoc_vec!(f64, GenericListArray<i32>, ArrowDataType::Float64);
 
 impl ArrowAssoc for &str {
     type Builder = StringBuilder;

@@ -151,10 +151,6 @@ pub mod data_order;
 pub mod destinations;
 mod dispatcher;
 pub mod errors;
-#[cfg(feature = "fed_exec")]
-pub mod fed_dispatcher;
-#[cfg(feature = "federation")]
-pub mod fed_rewriter;
 #[cfg(feature = "dst_arrow")]
 pub mod get_arrow;
 #[cfg(feature = "dst_arrow2")]
@@ -185,8 +181,6 @@ pub mod prelude {
     pub use crate::destinations::{Consume, Destination, DestinationPartition};
     pub use crate::dispatcher::Dispatcher;
     pub use crate::errors::{ConnectorXError, ConnectorXOutError};
-    #[cfg(feature = "federation")]
-    pub use crate::fed_rewriter::{rewrite_sql, FederatedDataSourceInfo, Plan};
     #[cfg(feature = "dst_arrow")]
     pub use crate::get_arrow::{get_arrow, new_record_batch_iter};
     #[cfg(feature = "dst_arrow2")]
