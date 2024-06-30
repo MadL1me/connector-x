@@ -4,7 +4,7 @@ use super::{
 };
 use crate::constants::SECONDS_IN_DAY;
 use arrow::{array::{
-    ArrayBuilder, BooleanBuilder, BufferBuilder, Date32Builder, Float32Builder, Float64Builder, GenericListArray, GenericListBuilder, Int32Builder, Int64Builder, LargeBinaryBuilder, ListBuilder, PrimitiveBuilder, StringBuilder, Time64MicrosecondBuilder, Time64NanosecondBuilder, TimestampMicrosecondBuilder, TimestampNanosecondBuilder, UInt32Builder, UInt64Builder
+    ArrayBuilder, BooleanBuilder, BufferBuilder, Date32Builder, Float32Builder, Float64Builder, GenericListArray, GenericListBuilder, Int32Array, Int32Builder, Int64Builder, LargeBinaryBuilder, ListBuilder, PrimitiveBuilder, StringBuilder, Time64MicrosecondBuilder, Time64NanosecondBuilder, TimestampMicrosecondBuilder, TimestampNanosecondBuilder, UInt32Builder, UInt64Builder
 }, datatypes::Int32Type, ipc::BoolBuilder};
 use arrow::datatypes::Field;
 use arrow::datatypes::{DataType as ArrowDataType, TimeUnit};
@@ -67,68 +67,65 @@ impl_arrow_assoc!(f32, ArrowDataType::Float32, Float32Builder);
 impl_arrow_assoc!(f64, ArrowDataType::Float64, Float64Builder);
 impl_arrow_assoc!(bool, ArrowDataType::Boolean, BooleanBuilder);
 
-macro_rules! impl_arrow_assoc_vec {
-    ($T:ty, $AT:expr, $B:ty) => {
-        impl ArrowAssoc for Vec<$T> {
-            type Builder = $B;
+// macro_rules! impl_arrow_assoc_vec {
+//     ($T:ty, $AT:expr, $B:ty) => {
+//         impl ArrowAssoc for Vec<$T> {
+//             type Builder = GenericListBuilder<i32, $B>;
 
-            fn builder(nrows: usize) -> Self::Builder {
-                Self::Builder::with_capacity(nrows)
-            }
+//             fn builder(nrows: usize) -> Self::Builder {
+//                 GenericListBuilder::<i32, $B>::with_capacity(1024, nrows)
+//             }
 
-            //#[throws(ArrowDestinationError)]
-            fn append(builder: &mut Self::Builder, value: Self) -> Result<()> {
-                let val: Vec<Option<$T>> = value.into_iter().map(|v| Some(v)).collect();
-                //builder.try_push(Some(val)).unwrap();
-                for n in val {
-                    builder.append_option(n);
-                }
-                Ok(())
-            }
+//             //#[throws(ArrowDestinationError)]
+//             fn append(builder: &mut Self::Builder, value: Self) -> Result<()> {
+//                 let val: Vec<Option<$T>> = value.into_iter().map(|v| Some(v)).collect();
+//                 builder.append_value(value);
+//                 Ok(())
+//             }
 
-            fn field(header: &str) -> Field {
-                Field::new(
-                    header,
-                    ArrowDataType::LargeList(Arc::new(Field::new("", $AT, false))),
-                    false,
-                )
-            }
-        }
+//             fn field(header: &str) -> Field {
+//                 Field::new(
+//                     header,
+//                     ArrowDataType::LargeList(Arc::new(Field::new("", $AT, false))),
+//                     false,
+//                 )
+//             }
+//         }
 
-        impl ArrowAssoc for Option<Vec<$T>> {
-            type Builder = $B;
+//         impl ArrowAssoc for Option<Vec<$T>> {
+//             type Builder = $B;
 
-            fn builder(nrows: usize) -> Self::Builder {
-                Self::Builder::with_capacity(nrows)
-            }
+//             fn builder(nrows: usize) -> Self::Builder {
+//                 Self::Builder::with_capacity(nrows)
+//             }
 
-            //#[throws(ArrowDestinationError)]
-            fn append(builder: &mut Self::Builder, value: Self) -> Result<()> {
-                match value {
-                    Some(values) => {
-                        let val: Vec<Option<$T>> = values.into_iter().map(|v| Some(v)).collect();
-                        for n in val {
-                            builder.append_option(n);
-                        }
-                        Ok(())
-                    }
-                    None => {
-                        builder.append_null();
-                        Ok(())
-                    },
-                }
-            }
+//             //#[throws(ArrowDestinationError)]
+//             fn append(builder: &mut Self::Builder, value: Self) -> Result<()> {
+//                 match value {
+//                     Some(values) => {
+//                         let val: Vec<Option<$T>> = values.into_iter().map(|v| Some(v)).collect();
+//                         for n in val {
+//                             builder.append_option(n);
+//                         }
+//                         Ok(())
+//                     }
+//                     None => {
+//                         builder.append_null();
+//                         Ok(())
+//                     },
+//                 }
+//             }
 
-            fn field(header: &str) -> Field {
-                Field::new(
-                    header,
-                    ArrowDataType::LargeList(Arc::new(Field::new("", $AT, false))),
-                    true,
-                )
-            }
-        }
-    };
-}
+//             fn field(header: &str) -> Field {
+//                 Field::new(
+//                     header,
+//                     ArrowDataType::LargeList(Arc::new(Field::new("", $AT, false))),
+//                     true,
+//                 )
+//             }
+//         }
+//     };
+// }
 
 macro_rules! impl_arrow_assoc_primitive_vec {
     ($T:ty, $AT:expr) => {
@@ -137,8 +134,10 @@ macro_rules! impl_arrow_assoc_primitive_vec {
 }
 
 // impl_arrow_assoc_vec!(bool, ArrowDataType::Boolean, BooleanBuilder);
-impl_arrow_assoc_vec!(i32, ArrowDataType::Int32, Int32Builder);
-impl_arrow_assoc_vec!(i64, ArrowDataType::Int64, Int64Builder);
+
+// impl_arrow_assoc_vec!(i32, ArrowDataType::Int32, Int32Builder);
+// impl_arrow_assoc_vec!(i64, ArrowDataType::Int64, Int64Builder);
+
 // impl_arrow_assoc_vec!(u32, ArrowDataType::UInt32, UInt32Builder);
 // impl_arrow_assoc_vec!(u64, ArrowDataType::UInt64, UInt64Builder);
 // impl_arrow_assoc_vec!(f32, ArrowDataType::Float32, Float32Builder);
@@ -564,5 +563,95 @@ impl ArrowAssoc for Vec<u8> {
 
     fn field(header: &str) -> Field {
         Field::new(header, ArrowDataType::LargeBinary, false)
+    }
+}
+
+impl ArrowAssoc for Option<Vec<i32>> {
+    type Builder = GenericListBuilder<i32, Int32Builder>;
+
+    fn builder(nrows: usize) -> Self::Builder {
+        GenericListBuilder::<i32, Int32Builder>::with_capacity(Int32Builder::new(), nrows)
+    }
+
+    fn append(builder: &mut Self::Builder, value: Self) -> Result<()> {
+        match value {
+            Some(v) => {
+                for val in v {
+                    builder.values().append_value(val);
+                }
+            },
+            None => {
+                builder.append_null();
+            },
+        };
+        Ok(())
+    }
+
+    fn field(header: &str) -> Field {
+        Field::new(header, ArrowDataType::LargeBinary, true)
+    }
+}
+
+impl ArrowAssoc for Vec<i32> {
+    type Builder = GenericListBuilder<i32, Int32Builder>;
+
+    fn builder(nrows: usize) -> Self::Builder {
+        GenericListBuilder::<i32, Int32Builder>::with_capacity(Int32Builder::new(), nrows)
+    }
+
+    fn append(builder: &mut Self::Builder, value: Self) -> Result<()> {
+        for v in value {
+            builder.values().append_value(v);
+        }
+        Ok(())
+    }
+
+    fn field(header: &str) -> Field {
+        Field::new(header, ArrowDataType::LargeBinary, false)
+    }
+}
+
+impl ArrowAssoc for Option<Vec<i64>> {
+    type Builder = GenericListBuilder<i32, Int64Builder>;
+
+    fn builder(nrows: usize) -> Self::Builder {
+        GenericListBuilder::<i32, Int64Builder>::with_capacity(Int64Builder::new(), nrows)
+    }
+
+    fn append(builder: &mut Self::Builder, value: Self) -> Result<()> {
+        match value {
+            Some(v) => {
+                for val in v {
+                    builder.values().append_value(val);
+                }
+            },
+            None => {
+                builder.append_null();
+            },
+        };
+        Ok(())
+    }
+
+    fn field(header: &str) -> Field {
+        Field::new(header, ArrowDataType::LargeBinary, true)
+    }
+}
+
+impl ArrowAssoc for Vec<i64> {
+    type Builder = GenericListBuilder<i32, Int64Builder>;
+
+    fn builder(nrows: usize) -> Self::Builder {
+        GenericListBuilder::<i32, Int64Builder>::with_capacity(Int64Builder::new(), nrows)
+    }
+
+    fn append(builder: &mut Self::Builder, value: Self) -> Result<()> {
+        for v in value {
+            builder.values().append_value(v);
+        }
+        Ok(())
+    }
+
+    fn field(header: &str) -> Field {
+        Field::new(header, ArrowDataType::Int64, false)
     }
 }
